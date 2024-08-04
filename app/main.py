@@ -2,56 +2,65 @@ from flask import Flask, request, jsonify
 import joblib
 import pandas as pd
 from sqlalchemy import create_engine
+#from utils import extract_numeric_features, extract_datetime_features  # Importar las funciones desde utils.py
 
 app = Flask(__name__)
 
-# Load the trained model
-model = joblib.load('model.pkl')
+# Cargar el modelo entrenado
+pipeline = joblib.load('/app/model.pkl')  # Asegúrate de que la ruta sea correcta
 
-# Connect to the MySQL database
+# Conectar a la base de datos MySQL
 engine = create_engine('mysql+pymysql://root:root@db:3306/atc')
 
 @app.route('/classify-email', methods=['POST'])
 def classify_email():
     """
-    Endpoint to classify an email.
-    
-    This endpoint accepts POST requests with a JSON body that should include:
-    - client_id (int): The client ID.
-    - email_body (str): The content of the email to be classified.
-    
-    Responses:
-    - If the client has outstanding payments, returns a JSON with "success": False and a "reason".
-    - If the client does not have outstanding payments, returns a JSON with "success": True and the "prediction".
+    Endpoint para clasificar un correo electrónico.
+
+    Este endpoint acepta solicitudes POST con un cuerpo JSON que debe incluir:
+    - client_id (int): El ID del cliente.
+    - fecha_envio (str): La fecha y hora de envío del correo en formato 'YYYY-MM-DD HH:MM:SS'.
+    - email_body (str): El contenido del correo electrónico a clasificar.
+
+    Respuestas:
+    - Si el cliente tiene impagos, devuelve un JSON con "exito": False y una "razon".
+    - Si el cliente no tiene impagos, devuelve un JSON con "exito": True y la "prediccion".
     """
-    # Get JSON data from the request
+    print(request.headers)
+    print(request.get_data())
+
+    if request.content_type != 'application/json':
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+    
+    # Obtener los datos JSON de la solicitud
     data = request.get_json()
     client_id = data['client_id']
+    fecha_envio = data['fecha_envio']
     email_body = data['email_body']
     
-    # Check if the client has outstanding payments in the database
-    impagos = pd.read_sql(f'SELECT * FROM impagos WHERE cliente_id = {client_id}', engine)
+    # Verificar si el cliente tiene impagos en la base de datos
+    impagos = pd.read_sql(f'SELECT * FROM impagos WHERE client_id = {client_id}', engine)
     if not impagos.empty:
-        # If the client has outstanding payments, return a JSON response indicating the reason
+        # Si el cliente tiene impagos, devolver una respuesta JSON indicando la razón
         return jsonify({
-            "success": False,
-            "reason": "The client has outstanding payments"
+            "exito": False,
+            "razon": "El cliente tiene impagos"
         }), 200
     
-    # If the client does not have outstanding payments, predict the email category
-    prediction = model.predict([email_body])[0]
+    # Crear un DataFrame con la entrada del cliente
+    input_data = pd.DataFrame({
+               'email': [email_body]
+    })
     
-    # Return a JSON response with the prediction
+    # Aplicar el pipeline de preprocesamiento y predecir la categoría del correo electrónico
+    prediction = pipeline.predict(input_data)[0]
+
+    
+    # Devolver una respuesta JSON con la predicción
     return jsonify({
-        "success": True,
-        "prediction": prediction
+        "exito": True,
+        "prediccion": prediction
     }), 200
 
 if __name__ == '__main__':
-    """
-    Entry point of the Flask application.
-    
-    If this file is run directly, the Flask application will start
-    on host 0.0.0.0 and port 5000.
-    """
     app.run(host='0.0.0.0', port=5000)

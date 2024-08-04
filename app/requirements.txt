@@ -1,6 +1,6 @@
 flask
-joblib
+sqlalchemy
 pandas
 scikit-learn
-sqlalchemy
+joblib
 pymysql

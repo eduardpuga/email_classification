@@ -1,4 +1,4 @@
-version: "3"
+version: "3.9"
 
 services:
   db:
@@ -9,23 +9,52 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: atc
-
     volumes:
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  app:
-    container_name: atc_app
-    build: ./app
-    depends_on:
-      - db
-    ports:
-      - "5000:5000"
+    networks:
+      - atc-network
 
   train:
     build:
       context: .
+      dockerfile: Dockerfile.train_model
     depends_on:
       - db
-    command: python train_model.py
     volumes:
-      - ./app:/app
+      - model_data:/app
+    environment:
+      - WAIT_HOSTS=db:3306
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOSTS_STRICT=0
+    command: ["sh", "-c", "wait && python train_model.py"]
+    networks:
+      - atc-network
+
+  app:
+    container_name: atc_app
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    depends_on:
+      - db
+      - train
+    ports:
+      - "5000:5000"
+    volumes:
+      - model_data:/app
+    environment:
+      - WAIT_HOSTS=db:3306
+      - WAIT_HOSTS_TIMEOUT=300
+      - WAIT_SLEEP_INTERVAL=30
+      - WAIT_HOSTS_STRICT=0
+    command: ["sh", "-c", "wait && python main.py"]
+    networks:
+      - atc-network
+
+networks:
+  atc-network:
+    driver: bridge
+
+volumes:
+  model_data:
