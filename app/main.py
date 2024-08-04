@@ -3,14 +3,23 @@ import joblib
 import pandas as pd
 from sqlalchemy import create_engine
 #from utils import extract_numeric_features, extract_datetime_features  # Importar las funciones desde utils.py
+import datetime
 
 app = Flask(__name__)
 
 # Cargar el modelo entrenado
-pipeline = joblib.load('/app/model.pkl')  # Asegúrate de que la ruta sea correcta
+pipeline = joblib.load('/app/model_data/model.pkl') 
 
 # Conectar a la base de datos MySQL
 engine = create_engine('mysql+pymysql://root:root@db:3306/atc')
+
+def is_valid_datetime(date_string):
+    try:
+        datetime.datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
+        return True
+    except ValueError:
+        return False
+
 
 @app.route('/classify-email', methods=['POST'])
 def classify_email():
@@ -34,9 +43,21 @@ def classify_email():
     
     # Obtener los datos JSON de la solicitud
     data = request.get_json()
-    client_id = data['client_id']
-    fecha_envio = data['fecha_envio']
-    email_body = data['email_body']
+
+    # Validar client_id
+    client_id = data.get('client_id')
+    if not isinstance(client_id, int):
+        return jsonify({"error": "client_id must be an integer"}), 400
+
+    # Validar fecha_envio
+    fecha_envio = data.get('fecha_envio')
+    if not isinstance(fecha_envio, str) or not is_valid_datetime(fecha_envio):
+        return jsonify({"error": "fecha_envio must be a string in format YYYY-MM-DD HH:MM:SS"}), 400
+
+    # Validar email_body
+    email_body = data.get('email_body')
+    if not isinstance(email_body, str):
+        return jsonify({"error": "email_body must be a string"}), 400
     
     # Verificar si el cliente tiene impagos en la base de datos
     impagos = pd.read_sql(f'SELECT * FROM impagos WHERE client_id = {client_id}', engine)

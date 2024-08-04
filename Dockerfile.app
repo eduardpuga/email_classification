@@ -1,4 +1,4 @@
-# Utilizar una imagen base de Python
+# Dockerfile.app
 FROM python:3.9
 
 # Instalar wait-for-it
@@ -17,7 +17,7 @@ COPY app/utils.py utils.py
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el resto de los archivos
-COPY . .
+COPY app/ .
 
 # Comando para ejecutar la aplicación
 CMD ["python", "main.py"]

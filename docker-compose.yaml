@@ -11,6 +11,11 @@ services:
       MYSQL_DATABASE: atc
     volumes:
       - ./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "--password=root"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - atc-network
 
@@ -19,9 +24,10 @@ services:
       context: .
       dockerfile: Dockerfile.train_model
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     volumes:
-      - model_data:/app
+      - model_data:/train/model_data
     environment:
       - WAIT_HOSTS=db:3306
       - WAIT_HOSTS_TIMEOUT=300
@@ -42,7 +48,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - model_data:/app
+      - model_data:/app/model_data
     environment:
       - WAIT_HOSTS=db:3306
       - WAIT_HOSTS_TIMEOUT=300

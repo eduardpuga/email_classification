@@ -7,10 +7,14 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.model_selection import train_test_split
 import joblib
 from sqlalchemy import create_engine
-from utils import extract_numeric_features, extract_datetime_features
 from sklearn.metrics import classification_report, accuracy_score
 
 
+""" def extract_numeric_features(df):
+    return df[['client_id']].values
+
+def extract_datetime_features(df):
+    return pd.to_datetime(df['fecha_envio']).astype('int64').values.reshape(-1, 1) """
 
 # Conectar a la base de datos MySQL
 engine = create_engine('mysql+pymysql://root:root@db:3306/atc')
@@ -29,7 +33,7 @@ emails.loc[emails['email'].str.contains('factura', case=False), 'categoria'] = '
 emails.loc[emails['email'].str.contains('contrato', case=False), 'categoria'] = 'contrato'
 emails.loc[emails['email'].str.contains('acceso', case=False), 'categoria'] = 'acceso'
 
-# Crear el pipeline de clasificación
+# Crear el pipeline de clasificación con todos los datos
 """ preprocessor = ColumnTransformer(
     transformers=[
         ('num', FunctionTransformer(extract_numeric_features, validate=False), ['client_id']),  # nombre de la columna
@@ -64,11 +68,11 @@ pipeline.fit(X_train, y_train)
 y_pred = pipeline.predict(X_test)
 
 # Generar un informe de clasificación
-report = classification_report(y_test, y_pred)
+report = classification_report(y_test, y_pred, zero_division=1)
 accuracy = accuracy_score(y_test, y_pred)
 
 print("Classification Report:\n", report)
 print("Accuracy:", accuracy)
 
 # Guardar el modelo entrenado
-joblib.dump(pipeline, '/app/model.pkl')  # Ajusta esta línea si es necesario
+joblib.dump(pipeline, '/train/model_data/model.pkl') 
