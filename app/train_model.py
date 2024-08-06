@@ -1,20 +1,15 @@
 import pandas as pd
 from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import StandardScaler, FunctionTransformer
+from sklearn.preprocessing import StandardScaler, FunctionTransformer, OneHotEncoder, LabelEncoder
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import MultinomialNB
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 import joblib
 from sqlalchemy import create_engine
 from sklearn.metrics import classification_report, accuracy_score
-
-
-""" def extract_numeric_features(df):
-    return df[['client_id']].values
-
-def extract_datetime_features(df):
-    return pd.to_datetime(df['fecha_envio']).astype('int64').values.reshape(-1, 1) """
+from utils import extract_datetime_features, encode_labels
+import os
 
 # Conectar a la base de datos MySQL
 engine = create_engine('mysql+pymysql://root:root@db:3306/atc')
@@ -27,35 +22,34 @@ impagos = pd.read_sql('SELECT * FROM impagos', engine)
 clientes_con_impagos = impagos['client_id'].unique()
 emails = emails[~emails['client_id'].isin(clientes_con_impagos)]
 
-# Definir categorías (aquí ajusta las categorías según tu análisis previo)
+# Definición de categorías
 emails['categoria'] = 'general'
 emails.loc[emails['email'].str.contains('factura', case=False), 'categoria'] = 'factura'
 emails.loc[emails['email'].str.contains('contrato', case=False), 'categoria'] = 'contrato'
 emails.loc[emails['email'].str.contains('acceso', case=False), 'categoria'] = 'acceso'
 
+# Extraer características de fecha
+emails = extract_datetime_features(emails)
+
 # Crear el pipeline de clasificación con todos los datos
-""" preprocessor = ColumnTransformer(
+preprocessor = ColumnTransformer(
     transformers=[
-        ('num', FunctionTransformer(extract_numeric_features, validate=False), ['client_id']),  # nombre de la columna
-        ('date', FunctionTransformer(extract_datetime_features, validate=False), ['fecha_envio']),  # nombre de la columna
+        ('client', OneHotEncoder(handle_unknown='ignore'), ['client_id']),
+        ('date', OneHotEncoder(handle_unknown='ignore'), ['dia_semana', 'mes', 'es_finde']),
         ('text', TfidfVectorizer(), 'email')
     ]
 )
 
 pipeline = Pipeline([
     ('preprocessor', preprocessor),
-    ('clf', MultinomialNB())
-])
- """
-# Crear el pipeline de clasificación usando solo el contenido del correo electrónico
-pipeline = Pipeline([
-    ('text', TfidfVectorizer()),  # Vectorizar el contenido del correo electrónico
-    ('clf', MultinomialNB())      # Clasificador Naive Bayes
+    ('clf', RandomForestClassifier())
 ])
 
+# Crear el LabelEncoder para la variable objetivo
+emails = encode_labels(emails, 'categoria')
+
 # Definir las características de entrada y la variable de destino
-#X = emails[['client_id', 'fecha_envio', 'email']]
-X = emails['email']
+X = emails[['client_id', 'dia_semana', 'mes', 'es_finde', 'email']]
 y = emails['categoria']
 
 # Dividir los datos en conjuntos de entrenamiento y prueba
@@ -75,4 +69,9 @@ print("Classification Report:\n", report)
 print("Accuracy:", accuracy)
 
 # Guardar el modelo entrenado
-joblib.dump(pipeline, '/train/model_data/model.pkl') 
+model_path = '/train/model_data/model.pkl'
+joblib.dump(pipeline, model_path)
+
+# Verificar si el modelo es guardado correctamente
+if not os.path.exists(model_path):
+    raise ValueError(f"Modelo no guardado correctamente en {model_path}")

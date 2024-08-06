@@ -14,7 +14,7 @@ COPY app/train_model.py train_model.py
 COPY app/utils.py utils.py
 
 # Instalar las dependencias
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Copiar el resto de los archivos
 COPY app/ .
